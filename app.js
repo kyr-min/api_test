@@ -9,7 +9,8 @@ var bibigo_water_dumpling = '=19870190051-561';
 var bokum_rice = '=20020614179649';
 var stone_age = '=198803110017';
 
-var rwmat_arr;
+var text_before;
+
 
 
 var RwmatUrl = 'http://apis.data.go.kr/1470000/FoodRwmatrInfoService/getFoodRwmatrList';
@@ -33,12 +34,22 @@ function getSpecificInfo(rwmat_in) { //원재료별 정보
         method: 'GET'
     }, function (error, response, body) {
         // console.log('Status for Rwmat', response.statusCode);
+        console.log("");
+        if(text_before === undefined){
+            text_before = response.body;
+        } 
+        else if(text_before === response.body){
+            console.log("뭔가 이상한데???");
+        }
         let start = response.body.indexOf("MLSFC_NM");
         let end = response.body.indexOf("MLSFC_NM", start + 1);
 
-        let MLSFC_NM = response.body.substring(start + 1, end);
+        
 
-        // console.log(response.body);
+        let MLSFC_NM = response.body.substring(start, end);
+        
+        console.log(`start = ${start} end = ${end}`);
+        console.log(`rwmat_in = ${rwmat_in}     MLSFC_NM = ${MLSFC_NM}`);
     });
 }
 // var callFoodInfoAPI = request({ //식품 정보
@@ -55,7 +66,7 @@ function getSpecificInfo(rwmat_in) { //원재료별 정보
 // })
 
 function callFoodInfoAPI(prodnum) { //식품 정보
-
+    let rwmat_arr;
     try {
         foodInfoQueryParams += '/' + encodeURIComponent('PRDLST_REPORT_NO') + prodnum;
         request({
@@ -67,8 +78,24 @@ function callFoodInfoAPI(prodnum) { //식품 정보
 
             let start = response.body.indexOf("RAWMTRL_NM");
             let end = response.body.indexOf("RAWMTRL_NM", start + 3);
+            let temp = 0;
 
             rwmat_arr = response.body.substring(start + 11, end - 2).split(',');
+
+            console.log(rwmat_arr.length);
+
+            // getSpecificInfo(rwmat_arr[temp])
+            //     .then(()=>{
+            //         if(temp < rwmat_arr.length){
+            //             temp++;
+                        
+            //         }
+            //     })
+            //     .catch((err) => console.error(err));
+
+            rwmat_arr.forEach(element => {
+                getSpecificInfo(element);
+            })
         })
     } catch (error) {
         console.error(error);
@@ -78,10 +105,6 @@ function callFoodInfoAPI(prodnum) { //식품 정보
 callFoodInfoAPI(bibigo_water_dumpling)
 
 console.log("started")
-
-rwmat_arr.forEach(element => {
-    console.log(element);
-})
 
 
 
