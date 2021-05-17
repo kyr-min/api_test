@@ -1,111 +1,141 @@
 const express = require("express");
 const dotenv = require('dotenv').config();
-const app = express();
-
 const request = require('request');
+const bodyParser = require("body-parser");
+const fs = require("fs");
+const { Server } = require("http");
 
+const app = express();
+app.use(bodyParser.json());
 
-var bibigo_water_dumpling = '=19870190051-561';
-var bokum_rice = '=20020614179649';
-var stone_age = '=198803110017';
+const bibigo_water_dumpling = '19870190051-561';
+const fried_rice = '20020614179649';
+const stone_age = '198803110017';
 
-var text_before;
+const notFoundData_loc = __dirname + "\\data\\notFound.txt"
+const FoundData_loc = __dirname + "\\data\\Found.txt"
 
+const rwMat = {
+    url: "http://apis.data.go.kr/1470000/FoodRwmatrInfoService/getFoodRwmatrList",
+    params: '?' + encodeURIComponent('ServiceKey') + '=' + process.env.RWMATKEY,
+}
 
+const foodInfo = {
+    url: 'http://openapi.foodsafetykorea.go.kr/api',
+    params: '/' + process.env.FOODINFOKEY + '/C002/xml/1/5'
+}
 
-var RwmatUrl = 'http://apis.data.go.kr/1470000/FoodRwmatrInfoService/getFoodRwmatrList';
-var RwamatQueryParams = '?' + encodeURIComponent('ServiceKey') + '=' + process.env.RWMATKEY;
+var users = [
+    {
+        name: "foo",
+        age: 30
+    },
+    {
+        name: "boo",
+        age:12
+    }
+]
 
-var foodInfoUrl = 'http://openapi.foodsafetykorea.go.kr/api';
-var foodInfoQueryParams = '/' + process.env.FOODINFOKEY;
-foodInfoQueryParams += '/' + 'C002';
-foodInfoQueryParams += '/' + 'xml';
-foodInfoQueryParams += '/' + '1';
-foodInfoQueryParams += '/' + '5';
-
-
-function getSpecificInfo(rwmat_in) { //원재료별 정보
-    RwamatQueryParams += '&' + encodeURIComponent('rprsnt_rawmtrl_nm') + '=' + encodeURIComponent(rwmat_in);
-    RwamatQueryParams += '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1');
-    RwamatQueryParams += '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1');
-
+function material(matName) {
     request({
-        url: RwmatUrl + RwamatQueryParams,
+        url: rwMat.url + rwMat.params + '&' + encodeURIComponent('rprsnt_rawmtrl_nm') + '=' + encodeURIComponent(matName) +
+            '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
         method: 'GET'
     }, function (error, response, body) {
-        // console.log('Status for Rwmat', response.statusCode);
-        console.log("");
-        if(text_before === undefined){
-            text_before = response.body;
-        } 
-        else if(text_before === response.body){
-            console.log("뭔가 이상한데???");
+        console.log('Status', response.statusCode);
+        // console.log('Headers', JSON.stringify(response.headers));
+        console.log(body);
+
+        console.log('Reponse received');
+        let count_start = response.body.indexOf("totalCount");
+        let count_end = response.body.indexOf("totalCount", count_start + 1);
+        let totCount = response.body.substring(count_start + 11, count_end - 2);
+
+        if (totCount > 0) {
+            let RPRSNT_RAWMTRL_start = response.body.indexOf("RPRSNT_RAWMTRL_NM");
+            let RPRSNT_RAWMTRL_end = response.body.indexOf("RPRSNT_RAWMTRL_NM", RPRSNT_RAWMTRL_start + 1);
+            let RPRSNT_RAWMTRL_NM = response.body.substring(RPRSNT_RAWMTRL_start + 18, RPRSNT_RAWMTRL_end - 2);
+
+            let MLSFC_start = response.body.indexOf("MLSFC_NM");
+            let MLSFC_end = response.body.indexOf("MLSFC_NM", MLSFC_start + 1);
+            let MLSFC_NM = response.body.substring(MLSFC_start + 9, MLSFC_end - 2);
+
+            let FoundData = fs.readFileSync(FoundData_loc, "utf-8");
+            if (!FoundData.includes(matName)) {
+                fs.appendFile(FoundData_loc, `${matName} = ${RPRSNT_RAWMTRL_NM},${MLSFC_NM}\n`, (err) => {
+                    console.log(err);
+                })
+            }
+
+            console.log(`${matName} = ${MLSFC_NM}`);
+        } else {
+            console.log(`Material(${matName}) Not Found`);
+            let notFoundData = fs.readFileSync(notFoundData_loc, "utf8");
+            if (!notFoundData.includes(matName)) {
+                fs.appendFile(notFoundData_loc, matName + "\n", (err) => {
+                    console.log(error);
+                })
+                console.log(`Material(${matName}) appended in file ${notFoundData_loc}`)
+            } else {
+                console.log(`Material(${matName}) not added. already exists`)
+            }
         }
-        let start = response.body.indexOf("MLSFC_NM");
-        let end = response.body.indexOf("MLSFC_NM", start + 1);
-
-        
-
-        let MLSFC_NM = response.body.substring(start, end);
-        
-        console.log(`start = ${start} end = ${end}`);
-        console.log(`rwmat_in = ${rwmat_in}     MLSFC_NM = ${MLSFC_NM}`);
     });
 }
-// var callFoodInfoAPI = request({ //식품 정보
-//     url: foodInfoUrl + foodInfoQueryParams,
-//     method: 'GET'
-// }, function (error, response, body) {
-//     console.log('Status for foodInfo', response.statusCode);
-//     let bodyJSON = JSON.parse(body);
-//     let rwmat_arr = bodyJSON.C002.row[0].RAWMTRL_NM.split(",");
-//     console.log(rwmat_arr);
-//     for(let i = 0; i<rwmat_arr.length; i++){
-//         getSpecificInfo(rwmat_arr[i]);
-//     }
-// })
 
-function callFoodInfoAPI(prodnum) { //식품 정보
-    let rwmat_arr;
-    try {
-        foodInfoQueryParams += '/' + encodeURIComponent('PRDLST_REPORT_NO') + prodnum;
-        request({
-            url: foodInfoUrl + foodInfoQueryParams,
-            method: 'GET'
-        }, function (error, response, body) {
-            console.log(foodInfoUrl + foodInfoQueryParams)
-            console.log('Status for foodInfo', response.statusCode);
+function info(prodnum) {
+    request({
+        url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodnum,
+        method: 'GET'
+    }, function (error, response, body) {
+        console.log('Status for foodInfo', response.statusCode);
 
+        let count_start = response.body.indexOf("totalCount");
+        let count_end = response.body.indexOf("totalCount", count_start + 1);
+        let totCount = response.body.substring(count_start + 11, count_end - 2);
+
+        if (totCount != 0) {
             let start = response.body.indexOf("RAWMTRL_NM");
             let end = response.body.indexOf("RAWMTRL_NM", start + 3);
-            let temp = 0;
 
             rwmat_arr = response.body.substring(start + 11, end - 2).split(',');
-
-            console.log(rwmat_arr.length);
-
-            // getSpecificInfo(rwmat_arr[temp])
-            //     .then(()=>{
-            //         if(temp < rwmat_arr.length){
-            //             temp++;
-                        
-            //         }
-            //     })
-            //     .catch((err) => console.error(err));
+            console.log(rwmat_arr);
 
             rwmat_arr.forEach(element => {
-                getSpecificInfo(element);
+                material(element);
             })
-        })
-    } catch (error) {
-        console.error(error);
-    }
+        } else {
+            throw `Product(${prodnum}) Not Found`;
+        }
+    });
 }
 
-callFoodInfoAPI(bibigo_water_dumpling)
+// material("위고둥");
+// info(fried_rice);
 
 console.log("started")
 
+
+app.get('/api/users', (req, res) => {
+    res.json(users);
+})
+
+app.get('/api/users/:name', (req, res) => {
+    let user = users.find((u) => {
+        return u.name === req.params.name;
+    })
+
+    if(user){
+        res.json(user);
+    } else {
+        res.status(404).json({errorMessage:'User was not found'})
+    }
+})
+
+app.post("/api/users", (req, res) => {
+    users.push(req.body);
+    res.json(users);
+})
 
 
 app.get('/', (req, res) => {
