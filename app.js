@@ -3,7 +3,9 @@ const dotenv = require('dotenv').config();
 const request = require('request');
 const bodyParser = require("body-parser");
 const fs = require("fs");
-const { Server } = require("http");
+const mongoose = require("mongodb");
+const User = require('./models/Food');
+const Food = require("./models/Food");
 
 const app = express();
 app.use(bodyParser.json());
@@ -25,17 +27,6 @@ const foodInfo = {
     params: '/' + process.env.FOODINFOKEY + '/C002/xml/1/5'
 }
 
-var users = [
-    {
-        name: "foo",
-        age: 30
-    },
-    {
-        name: "boo",
-        age:12
-    }
-]
-
 function material(matName) {
     request({
         url: rwMat.url + rwMat.params + '&' + encodeURIComponent('rprsnt_rawmtrl_nm') + '=' + encodeURIComponent(matName) +
@@ -44,7 +35,6 @@ function material(matName) {
     }, function (error, response, body) {
         console.log('Status', response.statusCode);
         // console.log('Headers', JSON.stringify(response.headers));
-        console.log(body);
 
         console.log('Reponse received');
         let count_start = response.body.indexOf("totalCount");
@@ -84,64 +74,85 @@ function material(matName) {
 }
 
 function info(prodnum) {
-    request({
-        url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodnum,
-        method: 'GET'
-    }, function (error, response, body) {
-        console.log('Status for foodInfo', response.statusCode);
-
-        let count_start = response.body.indexOf("totalCount");
-        let count_end = response.body.indexOf("totalCount", count_start + 1);
-        let totCount = response.body.substring(count_start + 11, count_end - 2);
-
-        if (totCount != 0) {
-            let start = response.body.indexOf("RAWMTRL_NM");
-            let end = response.body.indexOf("RAWMTRL_NM", start + 3);
-
-            rwmat_arr = response.body.substring(start + 11, end - 2).split(',');
-            console.log(rwmat_arr);
-
-            rwmat_arr.forEach(element => {
-                material(element);
-            })
-        } else {
-            throw `Product(${prodnum}) Not Found`;
-        }
-    });
+    return new Promise((resolve, reject) => {
+        request({
+            url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodnum,
+            method: 'GET'
+        }, function (error, response, body) {
+            var result = {
+                prodNum: "-1",
+                prodName: "",
+                rwmat_arr: []
+            }
+            console.log('Status for foodInfo', response.statusCode);
+    
+            let count_start = response.body.indexOf("totalCount");
+            let count_end = response.body.indexOf("totalCount", count_start + 1);
+            let totCount = response.body.substring(count_start + 11, count_end - 2);
+            console.log(body);
+            if (totCount != 0) {
+                let RAWMTRL_start = response.body.indexOf("RAWMTRL_NM");
+                let RAWMTRL_end = response.body.indexOf("RAWMTRL_NM", RAWMTRL_start + 1);
+    
+                let rwmat_arr = response.body.substring(RAWMTRL_start + 11, RAWMTRL_end - 2).split(',');
+                
+                let PRDLST_NM_start = response.body.indexOf("PRDLST_NM");
+                let PRDLST_NM_end = response.body.indexOf("PRDLST_NM", PRDLST_NM_start + 1);
+    
+                prodName = response.body.substring(PRDLST_NM_start+10, PRDLST_NM_end-2);
+    
+                rwmat_arr.forEach(element => {
+                    // material(element);
+                })
+    
+                result.prodNum = prodnum;
+                result.prodName = prodName;
+                result.rwmat_arr = rwmat_arr;
+            
+                resolve(result);
+            } else {
+                reject(`Product(${prodnum}) Not Found`);
+            }
+        });
+    })
 }
-
-// material("위고둥");
-// info(fried_rice);
-
 console.log("started")
 
-
-app.get('/api/users', (req, res) => {
-    res.json(users);
-})
-
-app.get('/api/users/:name', (req, res) => {
-    let user = users.find((u) => {
-        return u.name === req.params.name;
-    })
-
-    if(user){
-        res.json(user);
-    } else {
-        res.status(404).json({errorMessage:'User was not found'})
+async function upload(prodNum) {
+    try{
+        return await info(prodNum);
+    }catch(error) {
+        return null;
     }
-})
-
-app.post("/api/users", (req, res) => {
-    users.push(req.body);
-    res.json(users);
-})
+}
 
 
-app.get('/', (req, res) => {
-    res.render('index.ejs', );
-    res.write("hello");
-})
-
-
-app.listen(3000);
+app.listen(3000, err => {
+    if(err){
+        console.error(err);
+    } else {
+        mongoose.connect(process.env.MONGOOSEURL, {useNewUrlParser: true, useUnifiedTopology: true}, (err, client) => {
+            if(err) {
+                console.error(err);
+            }else {
+                console.log("Connected to mongoose DB");
+            }
+            const val = client.db("mobileContents");
+            var results = [];
+            app.get("/see", (req, res) => {
+                val.collection("food").find().toArray().then(result => {
+                    results.push(result);
+                })
+                .catch(error => console.error(error));
+                res.json(results);
+            })
+            app.get("/create/:prodNum", (req, res) => {
+                val.collection("food").find({prodNum: req.params.prodNum}).toArray().then(result => {
+                    if(result.length === 0){
+                        info(req.params.prodNum);
+                    }
+                }).catch(error => console.error(error));
+            })
+        })
+    }
+});
