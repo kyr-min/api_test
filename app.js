@@ -89,7 +89,6 @@ function info(prodnum) {
             let count_start = response.body.indexOf("totalCount");
             let count_end = response.body.indexOf("totalCount", count_start + 1);
             let totCount = response.body.substring(count_start + 11, count_end - 2);
-            console.log(body);
             if (totCount != 0) {
                 let RAWMTRL_start = response.body.indexOf("RAWMTRL_NM");
                 let RAWMTRL_end = response.body.indexOf("RAWMTRL_NM", RAWMTRL_start + 1);
@@ -149,7 +148,21 @@ app.listen(3000, err => {
             app.get("/create/:prodNum", (req, res) => {
                 val.collection("food").find({prodNum: req.params.prodNum}).toArray().then(result => {
                     if(result.length === 0){
-                        info(req.params.prodNum);
+                        upload(req.params.prodNum).then((returned) => {
+                            console.log(returned);
+                            const newFood = new Food();
+                            newFood.prodNum = returned.prodNum;
+                            newFood.prodName = returned.prodName;
+                            // newFood.materials = returned.rwmat_arr;
+
+                            newFood.save().then((food) => {
+                                console.log(food);
+                                res.json({message: "succesfully added in DB"});
+                            }).catch((error) => {
+                                console.error(error);
+                                res.json({message: "got problem"})
+                            })
+                        });
                     }
                 }).catch(error => console.error(error));
             })
