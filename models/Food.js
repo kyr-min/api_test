@@ -12,9 +12,9 @@ const foodSchema = new Schema({
         type: String,
         required: true,
     },
-    // materials: [{
-    //     type: String
-    // }]
+    materials: [{
+        type: String
+    }]
 });
 
 module.exports = mongoose.model("Food", foodSchema);

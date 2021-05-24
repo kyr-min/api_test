@@ -3,8 +3,7 @@ const dotenv = require('dotenv').config();
 const request = require('request');
 const bodyParser = require("body-parser");
 const fs = require("fs");
-const mongoose = require("mongodb");
-const User = require('./models/Food');
+const {MongoClient, Collection} = require("mongodb");
 const Food = require("./models/Food");
 
 const app = express();
@@ -125,47 +124,13 @@ async function upload(prodNum) {
     }
 }
 
+async function listDatabases(client){
+    databasesList = await client.db.collection("food").find(result => {
+        console.log(result);
+    });
 
-app.listen(3000, err => {
-    if(err){
-        console.error(err);
-    } else {
-        mongoose.connect(process.env.MONGOOSEURL, {useNewUrlParser: true, useUnifiedTopology: true}, (err, client) => {
-            if(err) {
-                console.error(err);
-            }else {
-                console.log("Connected to mongoose DB");
-            }
-            const val = client.db("mobileContents");
-            var results = [];
-            app.get("/see", (req, res) => {
-                val.collection("food").find().toArray().then(result => {
-                    results.push(result);
-                })
-                .catch(error => console.error(error));
-                res.json(results);
-            })
-            app.get("/create/:prodNum", (req, res) => {
-                val.collection("food").find({prodNum: req.params.prodNum}).toArray().then(result => {
-                    if(result.length === 0){
-                        upload(req.params.prodNum).then((returned) => {
-                            console.log(returned);
-                            const newFood = new Food();
-                            newFood.prodNum = returned.prodNum;
-                            newFood.prodName = returned.prodName;
-                            // newFood.materials = returned.rwmat_arr;
+};
 
-                            newFood.save().then((food) => {
-                                console.log(food);
-                                res.json({message: "succesfully added in DB"});
-                            }).catch((error) => {
-                                console.error(error);
-                                res.json({message: "got problem"})
-                            })
-                        });
-                    }
-                }).catch(error => console.error(error));
-            })
-        })
-    }
-});
+
+
+app.listen(3000);
