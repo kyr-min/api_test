@@ -3,7 +3,6 @@ const dotenv = require('dotenv').config();
 const request = require('request');
 const bodyParser = require("body-parser");
 const fs = require("fs");
-const { Server } = require("http");
 
 const app = express();
 app.use(bodyParser.json());
@@ -89,7 +88,7 @@ function info(prodnum) {
         method: 'GET'
     }, function (error, response, body) {
         console.log('Status for foodInfo', response.statusCode);
-
+        console.log(body);
         let count_start = response.body.indexOf("totalCount");
         let count_end = response.body.indexOf("totalCount", count_start + 1);
         let totCount = response.body.substring(count_start + 11, count_end - 2);
@@ -111,7 +110,7 @@ function info(prodnum) {
 }
 
 // material("위고둥");
-// info(fried_rice);
+info("1985049901137");
 
 console.log("started")
 
