@@ -3,6 +3,16 @@ const dotenv = require('dotenv').config();
 const request = require('request');
 const bodyParser = require("body-parser");
 const fs = require("fs");
+const {
+    MongoClient
+} = require("mongodb");
+const { platform } = require("os");
+
+const uri = process.env.MONGO_URI;
+
+const client = new MongoClient(uri, {
+    useUnifiedTopology: true
+});
 
 const app = express();
 app.use(bodyParser.json());
@@ -24,123 +34,230 @@ const foodInfo = {
     params: '/' + process.env.FOODINFOKEY + '/C002/xml/1/5'
 }
 
-var users = [
-    {
-        name: "foo",
-        age: 30
-    },
-    {
-        name: "boo",
-        age:12
+function getContext(forWhat, body) {
+    switch (forWhat) {
+        case "mat-totalCount":
+            let count_start = body.indexOf("totalCount");
+            let count_end = body.indexOf("totalCount", count_start + 1);
+            let totCount = body.substring(count_start + 11, count_end - 2);
+            return totCount;
+            break;
+
+        case "food-totalCount":
+            let tcs = body.indexOf("total_count");
+            let tce = body.indexOf("total_count", tcs + 1);
+            let totalCount = body.substring(tcs + 12, tce - 2);
+            return totalCount;
+            break;
+
+        case "RPRSNT_RAWMTRL_NM":
+            let RPRSNT_RAWMTRL_start = body.indexOf("RPRSNT_RAWMTRL_NM");
+            let RPRSNT_RAWMTRL_end = body.indexOf("RPRSNT_RAWMTRL_NM", RPRSNT_RAWMTRL_start + 1);
+            let RPRSNT_RAWMTRL_NM = body.substring(RPRSNT_RAWMTRL_start + 18, RPRSNT_RAWMTRL_end - 2);
+            return RPRSNT_RAWMTRL_NM;
+            break;
+
+        case "MLSFC_NM":
+            let MLSFC_start = body.indexOf("MLSFC_NM");
+            let MLSFC_end = body.indexOf("MLSFC_NM", MLSFC_start + 1);
+            let MLSFC_NM = body.substring(MLSFC_start + 9, MLSFC_end - 2);
+            return MLSFC_NM;
+            break;
+
+        case "RAWMTRL_NM":
+            let RAWMTRL_start = body.indexOf("RAWMTRL_NM");
+            let RAWMTRL_end = body.indexOf("RAWMTRL_NM", RAWMTRL_start + 1);
+            let rwmat_arr = body.substring(RAWMTRL_start + 11, RAWMTRL_end - 2).split(',');
+            return rwmat_arr;
+            break;
+
+        case "PRDLST_NM":
+            let PRDLST_NM_start = body.indexOf("PRDLST_NM");
+            let PRDLST_NM_end = body.indexOf("PRDLST_NM", PRDLST_NM_start + 1);
+            let prodName = body.substring(PRDLST_NM_start + 10, PRDLST_NM_end - 2);
+            return prodName;
+            break;
+        default:
+            console.error("no case found");
     }
-]
+}
 
 function material(matName) {
-    request({
-        url: rwMat.url + rwMat.params + '&' + encodeURIComponent('rprsnt_rawmtrl_nm') + '=' + encodeURIComponent(matName) +
-            '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
-        method: 'GET'
-    }, function (error, response, body) {
-        console.log('Status', response.statusCode);
-        // console.log('Headers', JSON.stringify(response.headers));
-        console.log(body);
+    return new Promise((resolve, reject) => {
+        request({
+            url: rwMat.url + rwMat.params + '&' + encodeURIComponent('rprsnt_rawmtrl_nm') + '=' + encodeURIComponent(matName) +
+                '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
+            method: 'GET'
+        }, function (error, response, body) {
+            console.log('Status', response.statusCode);
+            console.log('Reponse received');
 
-        console.log('Reponse received');
-        let count_start = response.body.indexOf("totalCount");
-        let count_end = response.body.indexOf("totalCount", count_start + 1);
-        let totCount = response.body.substring(count_start + 11, count_end - 2);
+            let totCount = getContext("mat-totalCount", response.body);
 
-        if (totCount > 0) {
-            let RPRSNT_RAWMTRL_start = response.body.indexOf("RPRSNT_RAWMTRL_NM");
-            let RPRSNT_RAWMTRL_end = response.body.indexOf("RPRSNT_RAWMTRL_NM", RPRSNT_RAWMTRL_start + 1);
-            let RPRSNT_RAWMTRL_NM = response.body.substring(RPRSNT_RAWMTRL_start + 18, RPRSNT_RAWMTRL_end - 2);
+            if (totCount > 0) {
+                let RPRSNT_RAWMTRL_NM = getContext("RPRSNT_RAWMTRL_NM", response.body);
+                let MLSFC_NM = getContext("MLSFC_NM", response.body);
 
-            let MLSFC_start = response.body.indexOf("MLSFC_NM");
-            let MLSFC_end = response.body.indexOf("MLSFC_NM", MLSFC_start + 1);
-            let MLSFC_NM = response.body.substring(MLSFC_start + 9, MLSFC_end - 2);
+                let result = {
+                    matName: matName,
+                    RPRSNT_NML: RPRSNT_RAWMTRL_NM,
+                    MLSFC_NM: MLSFC_NM
+                };
 
-            let FoundData = fs.readFileSync(FoundData_loc, "utf-8");
-            if (!FoundData.includes(matName)) {
-                fs.appendFile(FoundData_loc, `${matName} = ${RPRSNT_RAWMTRL_NM},${MLSFC_NM}\n`, (err) => {
-                    console.log(err);
-                })
-            }
-
-            console.log(`${matName} = ${MLSFC_NM}`);
-        } else {
-            console.log(`Material(${matName}) Not Found`);
-            let notFoundData = fs.readFileSync(notFoundData_loc, "utf8");
-            if (!notFoundData.includes(matName)) {
-                fs.appendFile(notFoundData_loc, matName + "\n", (err) => {
-                    console.log(error);
-                })
-                console.log(`Material(${matName}) appended in file ${notFoundData_loc}`)
+                resolve(result);
             } else {
-                console.log(`Material(${matName}) not added. already exists`)
+                let result = {
+                    matName: matName,
+                    MLSFC_NM: "not-found"
+                }
+                resolve(result);
             }
-        }
-    });
-}
-
-function info(prodnum) {
-    request({
-        url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodnum,
-        method: 'GET'
-    }, function (error, response, body) {
-        console.log('Status for foodInfo', response.statusCode);
-        console.log(body);
-        let count_start = response.body.indexOf("totalCount");
-        let count_end = response.body.indexOf("totalCount", count_start + 1);
-        let totCount = response.body.substring(count_start + 11, count_end - 2);
-
-        if (totCount != 0) {
-            let start = response.body.indexOf("RAWMTRL_NM");
-            let end = response.body.indexOf("RAWMTRL_NM", start + 3);
-
-            rwmat_arr = response.body.substring(start + 11, end - 2).split(',');
-            console.log(rwmat_arr);
-
-            rwmat_arr.forEach(element => {
-                material(element);
-            })
-        } else {
-            throw `Product(${prodnum}) Not Found`;
-        }
-    });
-}
-
-// material("위고둥");
-info("1985049901137");
-
-console.log("started")
-
-
-app.get('/api/users', (req, res) => {
-    res.json(users);
-})
-
-app.get('/api/users/:name', (req, res) => {
-    let user = users.find((u) => {
-        return u.name === req.params.name;
+        });
     })
+}
 
-    if(user){
-        res.json(user);
-    } else {
-        res.status(404).json({errorMessage:'User was not found'})
+function info(prodNum) {
+    return new Promise((resolve, reject) => {
+        request({
+            url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodNum,
+            method: 'GET'
+        }, function (error, response, body) {
+            console.log('Status for foodInfo', response.statusCode);
+
+            let totCount = getContext("food-totalCount", response.body);
+            if (totCount != 0) {
+                let rwmat_arr = getContext("RAWMTRL_NM", response.body)
+
+                let prodName = getContext("PRDLST_NM", response.body);
+
+                console.log(`prodNum : ${prodNum} \nprodName : ${prodName}`);
+                console.log(rwmat_arr);
+
+                let result = {
+                    prodNum: prodNum,
+                    prodName: prodName,
+                    rwmat_arr: rwmat_arr
+                }
+
+                return resolve(result);
+            } else {
+                reject(`no Food found`);
+            }
+        });
+    });
+}
+console.log("started");
+
+async function main(prodNum) {
+    try {
+        await client.connect();
+        console.log("MongoDB connected");
+        let result = await info(prodNum);
+        console.log(`result.prodNum : ${result.prodNum}`);
+        console.log(`result.prodName : ${result.prodName}`);
+        console.log(`result.rwmat_arr : ${result.rwmat_arr}`);
+        let materials = []
+        let plant = 0;
+        let aquaProd = 0;
+        let microbe = 0;
+        let nutrient = 0;
+        let disinfectant = 0;
+        let foodAdditives = 0;
+        let starch = 0;
+        let livestock = 0;
+        let otherThanLivestock = 0;
+        let etc = 0;
+        let notFound= 0;
+        let count = 0;
+        for (let i = 0; i < result.rwmat_arr.length; i++) {
+            let mat_info = await material(result.rwmat_arr[i]);
+            count++;
+            switch (mat_info.MLSFC_NM) {
+                case "식물":
+                    plant++;
+                    break;
+                case "미생물":
+                    microbe++;
+                    break;
+                case "살균소독제":
+                    disinfectant++;
+                    break;
+                case "수산물":
+                    aquaProd++;
+                    break;
+                case "식품첨가물 ":
+                    foodAdditives++;
+                    break;
+                case "영양성분":
+                    nutrient++;
+                    break;
+                case "전분제":
+                    starch++;
+                    break;
+                case "축,수산물 외 동물":
+                    otherThanLivestock++;
+                    break;
+                case "축산물":
+                    livestock++;
+                    break;
+                case "개별인정":
+                case "고무제":
+                case "금속제":
+                case "기능성원료":
+                case "기타":
+                case "목재류":
+                case "셀로판제":
+                case "유리제,도자기제,법랑 및 옹기류":
+                case "종이제 또는 가공지제":
+                case "한시적인정":
+                case "합성수지제":
+                case "세척제":
+                case "행굼보조제":
+                case "기타위생용품":
+                case "위생물수건":
+                    etc++;
+                    break;
+                case "not Found":
+                    notFound++;
+                    break;
+                default :
+                    notFound++;    
+                    break;
+            }
+            materials.push(mat_info);
+        }
+        console.log(materials);
+
+        const json_combined = {
+            prodNum: prodNum,
+            prodName: result.prodName,
+            status: null,
+            materials: materials,
+            count: count,
+            plant: plant,
+            microbe: microbe,
+            disinfectant: disinfectant,
+            aquaProd: aquaProd,
+            foodAdditives: foodAdditives,
+            nutrient: nutrient,
+            starch: starch,
+            otherThanLivestock: otherThanLivestock,
+            livestock: livestock,
+            notFound: notFound
+        }
+        return json_combined;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
     }
+}
+
+
+
+app.get("/api/:prodNum", async (req, res) => {
+    console.log(req.params.prodNum);
+    res.json(await main(req.params.prodNum).catch(console.error));
 })
-
-app.post("/api/users", (req, res) => {
-    users.push(req.body);
-    res.json(users);
-})
-
-
-app.get('/', (req, res) => {
-    res.render('index.ejs', );
-    res.write("hello");
-})
-
 
 app.listen(3000);
