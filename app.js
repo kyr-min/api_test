@@ -271,7 +271,7 @@ async function createListing(client, document) {
 
 app.get("/api/:prodNum", async (req, res) => {
     console.log(req.params.prodNum);
-    res.json(await main(req.params.prodNum).catch(console.error));
+    res.send(await main(req.params.prodNum).catch(console.error));
 })
 
 app.get("/api/reportissue/:prodNum", async(req, res) => {
