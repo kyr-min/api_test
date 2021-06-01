@@ -278,4 +278,8 @@ app.get("/api/reportissue/:prodNum", async(req, res) => {
     
 })
 
+app.get("/", (req, res) => {
+    res.render("index.ejs");
+})
+
 app.listen(3000);
