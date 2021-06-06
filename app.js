@@ -2,7 +2,6 @@ const express = require("express");
 const dotenv = require('dotenv').config();
 const request = require('request');
 const bodyParser = require("body-parser");
-const fs = require("fs");
 const {
     MongoClient
 } = require("mongodb");
@@ -18,6 +17,7 @@ const client = new MongoClient(uri, {
 
 const app = express();
 app.use(bodyParser.json());
+app.set("view engine", 'ejs');
 
 const bibigo_water_dumpling = '19870190051-561';
 const fried_rice = '20020614179649';
@@ -97,11 +97,10 @@ function material(matName) {
                 '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
             method: 'GET'
         }, function (error, response, body) {
+            console.log("mat called");
             let totCount = parseInt(getContext("mat-totalCount", response.body));
             let resultCode = parseInt(getContext("resultCode", response.body));
             if (totCount != 0 && resultCode == 0) {
-                if(matName == "5'-리보뉴클레오티드이나트륨")
-                    console.log(response.body);
                 let RPRSNT_RAWMTRL_NM = getContext("RPRSNT_RAWMTRL_NM", response.body);
                 let MLSFC_NM = getContext("MLSFC_NM", response.body);
 
@@ -129,6 +128,7 @@ function info(prodNum) {
             url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodNum,
             method: 'GET'
         }, function (error, response, body) {
+            console.log("info called");
             let totCount = getContext("food-totalCount", response.body);
             if (totCount != 0) {
                 let rwmat_arr = getContext("RAWMTRL_NM", response.body)
@@ -155,7 +155,6 @@ async function main(prodNum) {
         isItinDB = await findOneByprodNum(client, prodNum);
         var api_res = {
             err_msg: null,
-            prodNum: null,
             data_res: null
         };
         var data_res = null;
@@ -167,6 +166,8 @@ async function main(prodNum) {
                 result = await info(prodNum);
                 data_res = {
                     prodName: 0,
+                    prodNum: null,
+                    status: null,
                     materials: [],
                     count: 0,
                     plant: 0,
@@ -239,17 +240,16 @@ async function main(prodNum) {
                     data_res.materials.push(mat_info);
                 }
                 console.log(materials); 
-
+                data_res.prodNum = prodNum;
+                data_res.status = "Good";
                 await createListing(client, data_res);
-
-                api_res.prodNum = prodNum;
-                api_res.data_res = data_res;
-                return api_res;
             } catch (e) {
                 data_res = null;
                 api_res.err_msg = e;
             }
         }
+        api_res.data_res = data_res;
+        return api_res;
     } catch (e) {
         api_res.err_msg = `Server cannot connect to Database : ${e}`
         api_res.data_res = null;
@@ -286,11 +286,11 @@ app.get("/api/:prodNum", async (req, res) => {
 })
 
 app.get("/api/reportissue/:prodNum", async (req, res) => {
-
+    
 })
 
 app.get("/", (req, res) => {
-    res.send('<h1>Hello</h1>');
+    res.render('index');
 })
 
 app.listen(process.env.PORT);
