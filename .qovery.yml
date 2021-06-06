@@ -1,0 +1,15 @@
+---
+application:
+  name: "vcheck-api"
+  project: "v-chekc-api"
+  organization: "QoveryCommunity"
+databases:
+- type: "MONGODB"
+  name: "v-check-api"
+  version: "4.4"
+routers:
+- name: "main-vcheck-api"
+  routes:
+  - application_name: "vcheck-api"
+    paths:
+    - "/*"
