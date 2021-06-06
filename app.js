@@ -9,7 +9,12 @@ const {
 
 const uri = process.env.MONGO_URI;
 
-const client = new MongoClient(uri, { useUnifiedTopology: true, useNewUrlParser: true ,connectTimeoutMS: 30000 , keepAlive: 1});
+const client = new MongoClient(uri, {
+    useUnifiedTopology: true,
+    useNewUrlParser: true,
+    connectTimeoutMS: 30000,
+    keepAlive: 1
+});
 
 const app = express();
 app.use(bodyParser.json());
@@ -31,7 +36,7 @@ const foodInfo = {
     params: '/' + process.env.FOODINFOKEY + '/C002/xml/1/5'
 }
 
-function getContext(forWhat, body) {
+function getContext(forWhat, body, callback) {
     switch (forWhat) {
         case "mat-totalCount":
             let count_start = body.indexOf("totalCount");
@@ -76,8 +81,8 @@ function getContext(forWhat, body) {
             break;
         case "resultCode":
             let resultCode_start = body.indexOf("resultCode");
-            let resultCode_end = body.indexOf("resultCode", resultCode_start +1);
-            let resultCode = body.substring(resultCode_start + 11, resultCode_end-2);
+            let resultCode_end = body.indexOf("resultCode", resultCode_start + 1);
+            let resultCode = body.substring(resultCode_start + 11, resultCode_end - 2);
             return resultCode;
             break;
         default:
@@ -92,9 +97,11 @@ function material(matName) {
                 '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
             method: 'GET'
         }, function (error, response, body) {
+            let totCount = parseInt(getContext("mat-totalCount", response.body));
             let resultCode = parseInt(getContext("resultCode", response.body));
-            
-            if (resultCode != 0) {
+            if (totCount != 0 && resultCode == 0) {
+                if(matName == "5'-리보뉴클레오티드이나트륨")
+                    console.log(response.body);
                 let RPRSNT_RAWMTRL_NM = getContext("RPRSNT_RAWMTRL_NM", response.body);
                 let MLSFC_NM = getContext("MLSFC_NM", response.body);
 
@@ -127,16 +134,14 @@ function info(prodNum) {
                 let rwmat_arr = getContext("RAWMTRL_NM", response.body)
 
                 let prodName = getContext("PRDLST_NM", response.body);
-
                 let result = {
                     prodNum: prodNum,
                     prodName: prodName,
                     rwmat_arr: rwmat_arr
                 }
-
                 return resolve(result);
             } else {
-                reject(`no Food found`);
+                return reject(`Cannot find product with following parameter : ${prodNum}`);
             }
         });
     });
@@ -147,106 +152,108 @@ async function main(prodNum) {
     try {
         await client.connect();
         console.log("MongoDB connected");
-
         isItinDB = await findOneByprodNum(client, prodNum);
-        var json_combined;
+        var api_res = {
+            err_msg: null,
+            prodNum: null,
+            data_res: null
+        };
+        var data_res = null;
         if (isItinDB != null) {
-            json_combined = isItinDB;
+            data_res = isItinDB;
         } else {
-            let result = await info(prodNum);
-            let materials = []
-            let plant = 0;
-            let aquaProd = 0;
-            let microbe = 0;
-            let nutrient = 0;
-            let disinfectant = 0;
-            let foodAdditives = 0;
-            let starch = 0;
-            let livestock = 0;
-            let otherThanLivestock = 0;
-            let etc = 0;
-            let notFound = 0;
-            let count = 0;
-            for (let i = 0; i < result.rwmat_arr.length; i++) {
-                let mat_info = await material(result.rwmat_arr[i]);
-                count++;
-                switch (mat_info.MLSFC_NM) {
-                    case "식물":
-                        plant++;
-                        break;
-                    case "미생물":
-                        microbe++;
-                        break;
-                    case "살균소독제":
-                        disinfectant++;
-                        break;
-                    case "수산물":
-                        aquaProd++;
-                        break;
-                    case "식품첨가물 ":
-                        foodAdditives++;
-                        break;
-                    case "영양성분":
-                        nutrient++;
-                        break;
-                    case "전분제":
-                        starch++;
-                        break;
-                    case "축,수산물 외 동물":
-                        otherThanLivestock++;
-                        break;
-                    case "축산물":
-                        livestock++;
-                        break;
-                    case "개별인정":
-                    case "고무제":
-                    case "금속제":
-                    case "기능성원료":
-                    case "기타":
-                    case "목재류":
-                    case "셀로판제":
-                    case "유리제,도자기제,법랑 및 옹기류":
-                    case "종이제 또는 가공지제":
-                    case "한시적인정":
-                    case "합성수지제":
-                    case "세척제":
-                    case "행굼보조제":
-                    case "기타위생용품":
-                    case "위생물수건":
-                        etc++;
-                        break;
-                    case "not Found":
-                        notFound++;
-                        break;
-                    default:
-                        notFound++;
-                        break;
+            let result;
+            try {
+                result = await info(prodNum);
+                data_res = {
+                    prodName: 0,
+                    materials: [],
+                    count: 0,
+                    plant: 0,
+                    microbe: 0,
+                    disinfectant: 0,
+                    aquaProd: 0,
+                    foodAdditives: 0,
+                    nutrient: 0,
+                    starch: 0,
+                    otherThanLivestock: 0,
+                    livestock: 0,
+                    notFound: 0
                 }
-                materials.push(mat_info);
+                let materials = []
+                for (let i = 0; i < result.rwmat_arr.length; i++) {
+                    let mat_info = await material(result.rwmat_arr[i]);
+                    data_res.count++;
+                    switch (mat_info.MLSFC_NM) {
+                        case "식물":
+                            data_res.plant++;
+                            break;
+                        case "미생물":
+                            data_res.microbe++;
+                            break;
+                        case "살균소독제":
+                            data_res.disinfectant++;
+                            break;
+                        case "수산물":
+                            data_res.aquaProd++;
+                            break;
+                        case "식품첨가물 ":
+                            data_res.foodAdditives++;
+                            break;
+                        case "영양성분":
+                            data_res.nutrient++;
+                            break;
+                        case "전분제":
+                            data_res.starch++;
+                            break;
+                        case "축,수산물 외 동물":
+                            data_res.otherThanLivestock++;
+                            break;
+                        case "축산물":
+                            data_res.livestock++;
+                            break;
+                        case "개별인정":
+                        case "고무제":
+                        case "금속제":
+                        case "기능성원료":
+                        case "기타":
+                        case "목재류":
+                        case "셀로판제":
+                        case "유리제,도자기제,법랑 및 옹기류":
+                        case "종이제 또는 가공지제":
+                        case "한시적인정":
+                        case "합성수지제":
+                        case "세척제":
+                        case "행굼보조제":
+                        case "기타위생용품":
+                        case "위생물수건":
+                            data_res.etc++;
+                            break;
+                        case "not Found":
+                            data_res.notFound++;
+                            break;
+                        default:
+                            data_res.notFound++;
+                            break;
+                    }
+                    data_res.materials.push(mat_info);
+                }
+                console.log(materials); 
+
+                await createListing(client, data_res);
+
+                api_res.prodNum = prodNum;
+                api_res.data_res = data_res;
+                return api_res;
+            } catch (e) {
+                data_res = null;
+                api_res.err_msg = e;
             }
-            console.log(materials);
-            json_combined = {
-                prodNum: prodNum,
-                prodName: result.prodName,
-                status: null,
-                materials: materials,
-                count: count,
-                plant: plant,
-                microbe: microbe,
-                disinfectant: disinfectant,
-                aquaProd: aquaProd,
-                foodAdditives: foodAdditives,
-                nutrient: nutrient,
-                starch: starch,
-                otherThanLivestock: otherThanLivestock,
-                livestock: livestock,
-                notFound: notFound
-            }
-            await createListing(client, json_combined);
         }
-        return json_combined;
     } catch (e) {
-        console.error(e);
+        api_res.err_msg = `Server cannot connect to Database : ${e}`
+        api_res.data_res = null;
+        return api_res;
     }
 }
 
@@ -255,7 +262,7 @@ async function findOneByprodNum(client, prodOfListing) {
         prodNum: prodOfListing
     });
     if (result) {
-        console.log(`Found Name, in: ${prodOfListing}  found: ${result}`)
+        console.log(`Found Name, in: ${prodOfListing}`)
         return result;
     } else {
         console.log(`No listings found, in: ${prodOfListing}`);
@@ -265,8 +272,12 @@ async function findOneByprodNum(client, prodOfListing) {
 
 async function createListing(client, document) {
     const result = await client.db("mobileContents").collection("food").insertOne(document);
-
-    console.log(`document inserted in DB   id: ${result.insertedId}`);
+    if(result){
+        console.log(`document inserted in DB   id: ${result.insertedId}`);
+    } else {
+        console.log(`Couldn't insert document into DB`);
+    }
+    
 }
 
 app.get("/api/:prodNum", async (req, res) => {
@@ -274,8 +285,8 @@ app.get("/api/:prodNum", async (req, res) => {
     res.send(await main(req.params.prodNum).catch(console.error));
 })
 
-app.get("/api/reportissue/:prodNum", async(req, res) => {
-    
+app.get("/api/reportissue/:prodNum", async (req, res) => {
+
 })
 
 app.get("/", (req, res) => {
