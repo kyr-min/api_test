@@ -19,12 +19,12 @@ const app = express();
 app.use(bodyParser.json());
 app.set("view engine", 'ejs');
 
+dbConnect(client);
+
 const bibigo_water_dumpling = '19870190051-561';
 const fried_rice = '20020614179649';
 const stone_age = '198803110017';
 
-const notFoundData_loc = __dirname + "\\data\\notFound.txt"
-const FoundData_loc = __dirname + "\\data\\Found.txt"
 
 const rwMat = {
     url: "http://apis.data.go.kr/1470000/FoodRwmatrInfoService/getFoodRwmatrList",
@@ -34,6 +34,11 @@ const rwMat = {
 const foodInfo = {
     url: 'http://openapi.foodsafetykorea.go.kr/api',
     params: '/' + process.env.FOODINFOKEY + '/C002/xml/1/5'
+}
+
+async function dbConnect(inclient) {
+    await inclient.connect();
+    console.log("DB Connected")
 }
 
 function getContext(forWhat, body, callback) {
@@ -97,7 +102,6 @@ function material(matName) {
                 '&' + encodeURIComponent('pageNo') + '=' + encodeURIComponent('1') + '&' + encodeURIComponent('numOfRows') + '=' + encodeURIComponent('1'),
             method: 'GET'
         }, function (error, response, body) {
-            console.log("mat called");
             let totCount = parseInt(getContext("mat-totalCount", response.body));
             let resultCode = parseInt(getContext("resultCode", response.body));
             if (totCount != 0 && resultCode == 0) {
@@ -128,7 +132,6 @@ function info(prodNum) {
             url: foodInfo.url + foodInfo.params + '/' + encodeURIComponent('PRDLST_REPORT_NO') + '=' + prodNum,
             method: 'GET'
         }, function (error, response, body) {
-            console.log("info called");
             let totCount = getContext("food-totalCount", response.body);
             if (totCount != 0) {
                 let rwmat_arr = getContext("RAWMTRL_NM", response.body)
@@ -150,8 +153,6 @@ console.log("started");
 
 async function main(prodNum) {
     try {
-        await client.connect();
-        console.log("MongoDB connected");
         isItinDB = await findOneByprodNum(client, prodNum);
         var api_res = {
             err_msg: null,
@@ -179,12 +180,13 @@ async function main(prodNum) {
                     starch: 0,
                     otherThanLivestock: 0,
                     livestock: 0,
-                    notFound: 0
+                    notFound: 0,
+                    etc: 0
                 }
-                let materials = []
                 for (let i = 0; i < result.rwmat_arr.length; i++) {
                     let mat_info = await material(result.rwmat_arr[i]);
                     data_res.count++;
+                    console.log(mat_info.MLSFC_NM);
                     switch (mat_info.MLSFC_NM) {
                         case "식물":
                             data_res.plant++;
@@ -198,7 +200,7 @@ async function main(prodNum) {
                         case "수산물":
                             data_res.aquaProd++;
                             break;
-                        case "식품첨가물 ":
+                        case "식품첨가물":
                             data_res.foodAdditives++;
                             break;
                         case "영양성분":
@@ -239,7 +241,6 @@ async function main(prodNum) {
                     }
                     data_res.materials.push(mat_info);
                 }
-                console.log(materials); 
                 data_res.prodNum = prodNum;
                 data_res.status = "Good";
                 await createListing(client, data_res);
@@ -257,12 +258,21 @@ async function main(prodNum) {
     }
 }
 
+async function report(prodNum, status) {
+    try{
+        await updateStatus(client, prodNum, status);
+        return "good";
+    } catch (e){
+        return "Error";
+    }
+}
+
 async function findOneByprodNum(client, prodOfListing) {
     const result = await client.db("mobileContents").collection("food").findOne({
         prodNum: prodOfListing
     });
     if (result) {
-        console.log(`Found Name, in: ${prodOfListing}`)
+        console.log(`Found Name, in: ${prodOfListing}`);
         return result;
     } else {
         console.log(`No listings found, in: ${prodOfListing}`);
@@ -280,13 +290,21 @@ async function createListing(client, document) {
     
 }
 
+async function updateStatus(client, prodNum, status) {
+    const result = await client.db("mobileContents").collection("food").updateOne({prodNum: prodNum}, {$set : {status : status}});
+
+    console.log(result);
+}
+
 app.get("/api/:prodNum", async (req, res) => {
     console.log(req.params.prodNum);
     res.send(await main(req.params.prodNum).catch(console.error));
 })
 
-app.get("/api/reportissue/:prodNum", async (req, res) => {
-    
+app.get("/api/report/:prodNum/:status", async (req, res) => {
+    console.log(`prodNum = ${req.params.prodNum}`);
+    console.log(`status = ${req.params.status}`);
+    res.send(await report(req.params.prodNum, req.params.status));
 })
 
 app.get("/", (req, res) => {
