@@ -259,9 +259,14 @@ async function main(prodNum) {
 }
 
 async function report(prodNum, status) {
+    var res;
     try{
-        await updateStatus(client, prodNum, status);
-        return "good";
+        var update = await updateStatus(client, prodNum, status);
+        
+        if(update){
+            res = await findOneByprodNum(client, prodNum);
+            return res;
+        }
     } catch (e){
         return "Error";
     }
@@ -287,13 +292,17 @@ async function createListing(client, document) {
     } else {
         console.log(`Couldn't insert document into DB`);
     }
-    
 }
 
 async function updateStatus(client, prodNum, status) {
-    const result = await client.db("mobileContents").collection("food").updateOne({prodNum: prodNum}, {$set : {status : status}});
-
-    console.log(result);
+    var result;
+    try{
+        result = await client.db("mobileContents").collection("food").updateOne({prodNum: prodNum}, {$set : {status : status}});
+        return "Succesfull";
+    } catch(e) {
+        return null;
+    }
+    
 }
 
 app.get("/api/:prodNum", async (req, res) => {
