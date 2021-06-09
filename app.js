@@ -261,7 +261,7 @@ async function main(prodNum) {
 async function report(prodNum, status) {
     var res;
     try{
-        var update = await updateStatus(client, prodNum, status);
+        var update = await updateStatus(client, prodNum, (status == 1) ? "Good": "Error");
         
         if(update){
             res = await findOneByprodNum(client, prodNum);
@@ -313,7 +313,7 @@ app.get("/api/:prodNum", async (req, res) => {
 app.get("/api/report/:prodNum/:status", async (req, res) => {
     console.log(`prodNum = ${req.params.prodNum}`);
     console.log(`status = ${req.params.status}`);
-    res.send(await report(req.params.prodNum, req.params.status));
+    res.send(await report(req.params.prodNum, parseInt(req.params.status)));
 })
 
 app.get("/", (req, res) => {
