@@ -241,6 +241,7 @@ async function main(prodNum) {
                     }
                     data_res.materials.push(mat_info);
                 }
+                data_res.prodName = result.prodName;
                 data_res.prodNum = prodNum;
                 data_res.status = "Good";
                 await createListing(client, data_res);
