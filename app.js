@@ -17,15 +17,18 @@ const client = new MongoClient(uri, {
     keepAlive: 1
 });
 
+// const bibigo_water_dumpling = '19870190051-561';
+// const fried_rice = '20020614179649';
+// const stone_age = '198803110017';
+const addDB = 1;
+
 const app = express();
 app.use(bodyParser.json());
 app.set("view engine", 'ejs');
 
 db.dbConnect(client);
 
-const bibigo_water_dumpling = '19870190051-561';
-const fried_rice = '20020614179649';
-const stone_age = '198803110017';
+
 
 const rwMat = {
     url: "http://apis.data.go.kr/1470000/FoodRwmatrInfoService/getFoodRwmatrList",
@@ -126,6 +129,7 @@ async function main(prodNum) {
                     }
                     data_res.materials.push(mat_info);
                 }
+                data_res.prodName = result.prodName;
                 data_res.prodNum = prodNum;
                 data_res.status = "Good";
                 await db.createListing(client, data_res, "food");
@@ -150,8 +154,8 @@ app.get("/api/:prodNum", async (req, res) => {
 })
 
 app.get("/api/report/:prodNum/:status", async (req, res) => {
-    // console.log(`prodNum = ${req.params.prodNum}`);
-    // console.log(`status = ${req.params.status}`);
+    console.log(`prodNum = ${req.params.prodNum}`);
+    console.log(`status = ${req.params.status}`);
     res.send(await db.report(client, req.params.prodNum, req.params.status));
 })
 
