@@ -149,7 +149,7 @@ async function main(prodNum) {
 
 
 app.get("/api/:prodNum", async (req, res) => {
-    // console.log(req.params.prodNum);
+    console.log(`recieved param : ${req.params.prodNum}`);
     res.send(await main(req.params.prodNum).catch(console.error));
 })
 
