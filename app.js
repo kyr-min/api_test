@@ -41,12 +41,12 @@ const foodInfo = {
 }
 
 async function main(prodNum) {
+    var api_res = {
+        err_msg: null,
+        data_res: null
+    };
     try {
         isItinDB = await db.findOneByprodNum(client, prodNum);
-        var api_res = {
-            err_msg: null,
-            data_res: null
-        };
         var data_res = null;
         if (isItinDB != null) {
             data_res = isItinDB;
