@@ -172,6 +172,8 @@ async function main(prodNum) {
                     materials: [],
                     count: 0,
                     plant: 0,
+                    dairy: 0,
+                    eggs: 0,
                     microbe: 0,
                     disinfectant: 0,
                     aquaProd: 0,
@@ -214,6 +216,12 @@ async function main(prodNum) {
                             break;
                         case "축산물":
                             data_res.livestock++;
+                            break;
+                        case "유제품":
+                            data_res.dairy++;
+                            break;
+                        case "난류":
+                            data_res.eggs++;
                             break;
                         case "개별인정":
                         case "고무제":
